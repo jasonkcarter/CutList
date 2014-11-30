@@ -97,54 +97,52 @@ namespace CutList
         {
             await Task.Factory.StartNew(() =>
             {
+                if (materialOrder.Count == 0) return;
+
                 var cutOrder = new CutOrder();
                 int materialOrderIndex = 0;
                 int partOrderIndex = 0;
-                while (materialOrderIndex < materialOrder.Count)
+                var board = new Board
                 {
-                    var board = new Board
+                    Dimension = dimension,
+                    Length = materialOrder[materialOrderIndex]
+                };
+                var boardCutList = new List<decimal>();
+                decimal boardCutLength = 0M;
+                while (partOrderIndex < partOrder.Count)
+                {
+                    decimal partLength = partOrder[partOrderIndex];
+                    decimal sawWidth = boardCutList.Count == 0 ? 0M : Settings.Default.BladeWidth;
+
+                    // The next part fits on the current board, so add it to the list and continue
+                    if ((boardCutLength + partLength + sawWidth) < board.Length)
                     {
-                        Dimension = dimension,
-                        Length = materialOrder[materialOrderIndex]
-                    };
-                    var boardCutList = new List<decimal>();
-                    decimal boardCutLength = 0M;
-                    while (partOrderIndex < partOrder.Count)
-                    {
-                        decimal partLength = partOrder[partOrderIndex];
-                        decimal sawWidth = boardCutList.Count == 0 ? 0M : Settings.Default.BladeWidth;
-
-                        // The next part fits on the current board, so add it to the list and continue
-                        if ((boardCutLength + partLength + sawWidth) < board.Length)
-                        {
-                            boardCutLength += partLength + sawWidth;
-                            boardCutList.Add(partLength);
-                            partOrderIndex++;
-                            continue;
-                        }
-
-                        // The next part needs to come from a new board
-
-                        // Add the current board's cut list to the oveerall cut list
-                        cutOrder.Add(board, boardCutList);
-
-                        // Move to the next board
-                        materialOrderIndex++;
-                        decimal boardLength = materialOrder[materialOrderIndex];
-
-                        // If we've run out of boards, or the next board is too short for the part we need, throw out the cut order.
-                        if (partOrderIndex >= partOrder.Count || boardLength < partLength)
-                        {
-                            return;
-                        }
-
-                        // Set up the next board and its new cut list that includes just the current part
-                        board = new Board {Dimension = dimension, Length = boardLength};
-                        boardCutLength = boardLength;
-                        boardCutList = new List<decimal> {boardCutLength};
+                        boardCutLength += partLength + sawWidth;
+                        boardCutList.Add(partLength);
                         partOrderIndex++;
+                        continue;
                     }
+
+                    // The next part needs to come from a new board
+
+                    // Add the current board's cut list to the oveerall cut list
+                    cutOrder.Add(board, boardCutList);
+
+                    // Move to the next board
                     materialOrderIndex++;
+                    decimal boardLength = materialOrder[materialOrderIndex];
+
+                    // If we've run out of boards, or the next board is too short for the part we need, throw out the cut order.
+                    if (partOrderIndex >= partOrder.Count || boardLength < partLength)
+                    {
+                        return;
+                    }
+
+                    // Set up the next board and its new cut list that includes just the current part
+                    board = new Board {Dimension = dimension, Length = boardLength};
+                    boardCutLength = boardLength;
+                    boardCutList = new List<decimal> {boardCutLength};
+                    partOrderIndex++;
                 }
 
                 if (CutOrderFound != null)
