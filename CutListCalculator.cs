@@ -11,7 +11,7 @@ namespace CutList
     {
         public event EventHandler<CutOrder> CutOrderFound;
 
-        public void FindAll()
+        public Task FindAllAsync()
         {
             var materials = new WoodList();
             materials.Load("materials.csv");
@@ -19,14 +19,13 @@ namespace CutList
             var parts = new WoodList();
             parts.Load("parts.csv");
 
-            var cutOrders = from dimension in parts.Keys.AsParallel()
+            return Task.WhenAll(
+                from dimension in parts.Keys
                 let materialOrders = new Permutations<decimal>(materials[dimension], GenerateOption.WithoutRepetition)
                 let partOrders = new Permutations<decimal>(parts[dimension], GenerateOption.WithoutRepetition)
-                from materialOrder in materialOrders.AsParallel()
-                from partOrder in partOrders.AsParallel()
-                select new {Dimension = dimension, MaterialOrder = materialOrder, PartOrder = partOrder};
-
-            cutOrders.ForAll(x => BuildCutOrder(x.Dimension, x.MaterialOrder, x.PartOrder));
+                from List<decimal> materialOrder in materialOrders
+                from List<decimal> partOrder in partOrders
+                select BuildCutOrder(dimension, materialOrder, partOrder));
         }
 
         public static CutOrder FindOptimal()
@@ -69,7 +68,7 @@ namespace CutList
                 }
             };
 
-            calculator.FindAll();
+            calculator.FindAllAsync().Wait();
 
             var optimal = new CutOrder();
 
@@ -83,7 +82,7 @@ namespace CutList
             return optimal;
         }
 
-        private async Task BuildCutOrder(string dimension, IList<decimal> materialOrder, IList<decimal> partOrder)
+        private async Task BuildCutOrder(string dimension, List<decimal> materialOrder, List<decimal> partOrder)
         {
             await Task.Factory.StartNew(() =>
             {
