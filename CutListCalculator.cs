@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using CutList.Combinatorics;
 using CutList.Properties;
@@ -11,7 +12,7 @@ namespace CutList
     {
         public event EventHandler<CutOrder> CutOrderFound;
 
-        public Task FindAllAsync()
+        public void FindAll()
         {
             var materials = new WoodList();
             materials.Load("materials.csv");
@@ -19,13 +20,23 @@ namespace CutList
             var parts = new WoodList();
             parts.Load("parts.csv");
 
-            return Task.WhenAll(
-                from dimension in parts.Keys
-                let materialOrders = new Permutations<decimal>(materials[dimension], GenerateOption.WithoutRepetition)
-                let partOrders = new Permutations<decimal>(parts[dimension], GenerateOption.WithoutRepetition)
-                from List<decimal> materialOrder in materialOrders
-                from List<decimal> partOrder in partOrders
-                select BuildCutOrder(dimension, materialOrder, partOrder));
+            // Allow 12 simultaneous tasks to be running
+            var tasker = new Semaphore(12, 12);
+            foreach (string dimension in parts.Keys)
+            {
+                var materialOrders = new Permutations<decimal>(materials[dimension], GenerateOption.WithoutRepetition);
+                var partOrders = new Permutations<decimal>(parts[dimension], GenerateOption.WithoutRepetition);
+
+                foreach (IList<decimal> materialOrder in materialOrders)
+                {
+                    foreach (IList<decimal> partOrder in partOrders)
+                    {
+                        tasker.WaitOne();
+                        BuildCutOrder(dimension, materialOrder, partOrder)
+                            .ContinueWith(x => tasker.Release());
+                    }
+                }
+            }
         }
 
         public static CutOrder FindOptimal()
@@ -68,7 +79,7 @@ namespace CutList
                 }
             };
 
-            calculator.FindAllAsync().Wait();
+            calculator.FindAll();
 
             var optimal = new CutOrder();
 
@@ -82,7 +93,7 @@ namespace CutList
             return optimal;
         }
 
-        private async Task BuildCutOrder(string dimension, List<decimal> materialOrder, List<decimal> partOrder)
+        private async Task BuildCutOrder(string dimension, IList<decimal> materialOrder, IList<decimal> partOrder)
         {
             await Task.Factory.StartNew(() =>
             {
