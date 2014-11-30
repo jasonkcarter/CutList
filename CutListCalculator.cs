@@ -24,26 +24,36 @@ namespace CutList
                 foreach (IList<decimal> materialOrder in materialOrders)
                 {
                     List<decimal> dimensionParts = parts[dimension];
-                    var cutOrder = new CutOrder();
+                    var cutOrders = new List<CutOrder> {new CutOrder()};
 
                     foreach (decimal boardLength in materialOrder)
                     {
                         List<SumList> childCutSumLists = GetChildCutLengths(boardLength, dimensionParts.ToArray());
 
-                        // The cut order is no good, since there were no parts that would fit in this board
+                        // The material order is no good, since there were no parts that would fit in this board
                         if (childCutSumLists.Count == 0)
                         {
-                            cutOrder = null;
+                            cutOrders = null;
                             break;
                         }
 
-                        List<decimal> childCutLengths = childCutSumLists.Cast<decimal>().ToList();
-
-                        cutOrder.Add(new Board {Dimension = dimension, Length = boardLength}, childCutLengths);
+                        foreach (var cutOrder in cutOrders)
+                        {
+                            foreach (SumList childCutSumList in childCutSumLists)
+                            {
+                                var childCutLengths = new List<decimal>(childCutSumList);
+                                cutOrder.Add(new Board {Dimension = dimension, Length = boardLength}, childCutLengths);
+                            }
+                        }
                     }
-                    if (cutOrder != null && CutOrderFound != null)
+
+                    
+                    if (cutOrders != null && CutOrderFound != null)
                     {
-                        CutOrderFound(this, cutOrder);
+                        foreach (var cutOrder in cutOrders)
+                        {
+                            CutOrderFound(this, cutOrder);
+                        }
                     }
                 }
             }
@@ -107,9 +117,17 @@ namespace CutList
         {
             var allChildCutOrders = new List<SumList>();
 
+            var knownCutLengths = new List<decimal>();
             for (int i = 0; i < parts.Length; i++)
             {
                 decimal cutLength = parts[i];
+
+                // Performance: don't recurse duplicate cut lengths, since the child cut order will be the same.
+                if (knownCutLengths.Contains(cutLength))
+                {
+                    continue;
+                }
+                knownCutLengths.Add(cutLength);
                 if (cutLength > boardLength)
                 {
                     continue;
@@ -119,6 +137,7 @@ namespace CutList
                 {
                     var childCuts = new SumList {cutLength};
                     allChildCutOrders.Add(childCuts);
+                    continue;
                 }
 
                 var childParts = new decimal[parts.Length - 1];
@@ -133,6 +152,12 @@ namespace CutList
                 List<SumList> childCutLengths = GetChildCutLengths(
                     boardLength - cutLength - Settings.Default.BladeWidth,
                     childParts);
+                if (childCutLengths.Count == 0)
+                {
+                    var childCuts = new SumList { cutLength };
+                    allChildCutOrders.Add(childCuts);
+                    continue;
+                }
                 foreach (var childCutLengthList in childCutLengths)
                 {
                     childCutLengthList.Insert(0, cutLength);
