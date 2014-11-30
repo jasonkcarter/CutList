@@ -97,11 +97,10 @@ namespace CutList
         {
             await Task.Factory.StartNew(() =>
             {
-                bool isCutOrderGood = true;
                 var cutOrder = new CutOrder();
                 int materialOrderIndex = 0;
                 int partOrderIndex = 0;
-                while (isCutOrderGood && materialOrderIndex < materialOrder.Count)
+                while (materialOrderIndex < materialOrder.Count)
                 {
                     var board = new Board
                     {
@@ -136,8 +135,7 @@ namespace CutList
                         // If we've run out of boards, or the next board is too short for the part we need, throw out the cut order.
                         if (partOrderIndex >= partOrder.Count || boardLength < partLength)
                         {
-                            isCutOrderGood = false;
-                            break;
+                            return;
                         }
 
                         // Set up the next board and its new cut list that includes just the current part
@@ -147,12 +145,6 @@ namespace CutList
                         partOrderIndex++;
                     }
                     materialOrderIndex++;
-                }
-
-                // If the cut order was no good, then just move on to the next
-                if (!isCutOrderGood)
-                {
-                    return;
                 }
 
                 if (CutOrderFound != null)
