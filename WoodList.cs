@@ -50,7 +50,8 @@ namespace CutList
             foreach (string dimension in Keys)
             {
                 List<decimal> dimensionList = this[dimension];
-                dimensionList.Sort();
+                // Sort longest first
+                dimensionList.Sort((i1, i2) => i2.CompareTo(i1));
             }
         }
     }

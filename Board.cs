@@ -1,6 +1,6 @@
 ﻿namespace CutList
 {
-    public struct Board
+    public class Board
     {
         public string Dimension { get; set; }
         public decimal Length { get; set; }

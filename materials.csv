@@ -1,8 +1,8 @@
-Dimension (in),Length (ft),Quantity
-2x2,8,6
-2x4,12,36
-2x6,12,15
-2x8,12,4
-4x4,10,11
-4x6,16,1
-5/4x6,12,20
+Dimension (in),Length (in),Quantity
+2x2,96,6
+2x4,144,36
+2x6,144,15
+2x8,144,4
+4x4,120,10
+4x4,144,4
+5/4x6,144,20

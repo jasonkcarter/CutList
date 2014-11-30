@@ -55,6 +55,7 @@
       <DependentUpon>Settings.settings</DependentUpon>
     </Compile>
     <Compile Include="Combinatorics\SmallPrimeUtility.cs" />
+    <Compile Include="SumList.cs" />
     <Compile Include="WoodList.cs" />
   </ItemGroup>
   <ItemGroup>
