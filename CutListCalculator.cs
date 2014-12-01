@@ -23,37 +23,9 @@ namespace CutList
 
                 foreach (IList<decimal> materialOrder in materialOrders)
                 {
-                    List<decimal> dimensionParts = parts[dimension];
-                    var cutOrders = new List<CutOrder> {new CutOrder()};
-
-                    foreach (decimal boardLength in materialOrder)
+                    while (NextBoard(new CutOrder(), dimension, materialOrder.GetEnumerator(), parts[dimension]))
                     {
-                        List<SumList> childCutSumLists = GetChildCutLengths(boardLength, dimensionParts.ToArray());
-
-                        // The material order is no good, since there were no parts that would fit in this board
-                        if (childCutSumLists.Count == 0)
-                        {
-                            cutOrders = null;
-                            break;
-                        }
-
-                        foreach (var cutOrder in cutOrders)
-                        {
-                            foreach (SumList childCutSumList in childCutSumLists)
-                            {
-                                var childCutLengths = new List<decimal>(childCutSumList);
-                                cutOrder.Add(new Board {Dimension = dimension, Length = boardLength}, childCutLengths);
-                            }
-                        }
-                    }
-
-                    
-                    if (cutOrders != null && CutOrderFound != null)
-                    {
-                        foreach (var cutOrder in cutOrders)
-                        {
-                            CutOrderFound(this, cutOrder);
-                        }
+                        // Iterate through each board in the material order
                     }
                 }
             }
@@ -154,14 +126,19 @@ namespace CutList
                     childParts);
                 if (childCutLengths.Count == 0)
                 {
-                    var childCuts = new SumList { cutLength };
+                    var childCuts = new SumList {cutLength};
                     allChildCutOrders.Add(childCuts);
                     continue;
                 }
                 foreach (var childCutLengthList in childCutLengths)
                 {
                     childCutLengthList.Insert(0, cutLength);
-                    allChildCutOrders.Add(childCutLengthList);
+                    // Ignore duplicates
+                    if (!allChildCutOrders.Any(
+                        x => x.Sum == childCutLengthList.Sum && !x.Except(childCutLengthList).Any()))
+                    {
+                        allChildCutOrders.Add(childCutLengthList);
+                    }
                 }
             }
 
@@ -175,6 +152,44 @@ namespace CutList
             allChildCutOrders.RemoveAll(x => x.Sum < mostEfficientSum);
 
             return allChildCutOrders;
+        }
+
+        private bool NextBoard(CutOrder cutOrder, string dimension, IEnumerator<decimal> materialOrderEnumerator,
+            List<decimal> dimensionParts)
+        {
+            if (!materialOrderEnumerator.MoveNext())
+            {
+                if (CutOrderFound != null)
+                {
+                    CutOrderFound(this, cutOrder);
+                }
+                return false;
+            }
+
+            decimal boardLength = materialOrderEnumerator.Current;
+
+
+            List<SumList> childCutSumLists = GetChildCutLengths(boardLength, dimensionParts.ToArray());
+
+            // The material order is no good, since there were no parts that would fit in this board
+            if (childCutSumLists.Count == 0)
+            {
+                return false;
+            }
+
+            foreach (SumList childCutSumList in childCutSumLists)
+            {
+                var childCutLengths = new List<decimal>(childCutSumList);
+                cutOrder.Add(new Board {Dimension = dimension, Length = boardLength}, childCutLengths);
+                var childDimensionParts = new List<decimal>(dimensionParts);
+                foreach (decimal childCutLength in childCutLengths)
+                {
+                    childDimensionParts.Remove(childCutLength);
+                }
+
+                NextBoard(cutOrder, dimension, materialOrderEnumerator, childDimensionParts);
+            }
+            return true;
         }
     }
 }
