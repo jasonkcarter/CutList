@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
@@ -7,8 +8,21 @@ namespace CutList
     /// <summary>
     ///     Represents a specific order used to cut the required parts list in.
     /// </summary>
-    public class CutOrder : Dictionary<Board, List<decimal>>
+    public class CutOrder : Dictionary<Board, List<decimal>>, ICloneable
     {
+        public object Clone()
+        {
+            var cutOrder = new CutOrder();
+            foreach (Board board in Keys)
+            {
+                var boardCopy = new Board {Dimension = board.Dimension, Length = board.Length};
+                var cutListCopy = new List<decimal>(this[board]);
+                cutOrder.Add(boardCopy, cutListCopy);
+            }
+
+            return cutOrder;
+        }
+
         /// <summary>
         ///     Calculates the total length of wasted wood in this cut order.
         /// </summary>
