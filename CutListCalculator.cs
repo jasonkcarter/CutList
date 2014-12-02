@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using CutList.Combinatorics;
 using CutList.Properties;
 
@@ -24,7 +25,7 @@ namespace CutList
                 foreach (IList<decimal> materialOrder in materialOrders)
                 {
                     // Start to recurse through all the boards in the bill of materials
-                    NextBoard(new CutOrder(), dimension, materialOrder, 0, parts[dimension]);
+                    NextBoard(new CutOrder(), dimension, materialOrder, 0, parts[dimension]).Wait();
                 }
             }
         }
@@ -83,7 +84,8 @@ namespace CutList
             return optimal;
         }
 
-        private static List<SumList> GetChildCutLengths(decimal boardLength, List<decimal> parts, decimal? parentPartLength = null)
+        private static List<SumList> GetChildCutLengths(decimal boardLength, List<decimal> parts,
+            decimal? parentPartLength = null)
         {
             var allChildCutOrders = new List<SumList>();
 
@@ -91,7 +93,7 @@ namespace CutList
             var distinctPartLengths = parts.Distinct();
             int i = -1;
             decimal? previousPartLength = null;
-            foreach(decimal partLength in distinctPartLengths)
+            foreach (decimal partLength in distinctPartLengths)
             {
                 i++;
 
@@ -163,7 +165,7 @@ namespace CutList
             return allChildCutOrders;
         }
 
-        private void NextBoard(CutOrder cutOrder, string dimension, IList<decimal> materialOrder, int currentIndex,
+        private Task NextBoard(CutOrder cutOrder, string dimension, IList<decimal> materialOrder, int currentIndex,
             List<decimal> dimensionParts)
         {
             // Ran out of parts to cut. The cut order is good.
@@ -173,13 +175,13 @@ namespace CutList
                 {
                     CutOrderFound(this, cutOrder);
                 }
-                return;
+                return Task.Delay(0);
             }
 
             // Ran out of boards. Bad build order.
             if (currentIndex > (materialOrder.Count - 1))
             {
-                return;
+                return Task.Delay(0);
             }
 
             decimal boardLength = materialOrder[currentIndex];
@@ -205,42 +207,43 @@ namespace CutList
                         {
                             childDimensionParts.Remove(cutLength);
                         }
-                        NextBoard(cutOrder, dimension, materialOrder, currentIndex + 1, childDimensionParts);
-                        return;
+                        return NextBoard(cutOrder, dimension, materialOrder, currentIndex + 1, childDimensionParts);
                     }
                 }
             }
-
-            List<SumList> childCutSumLists = GetChildCutLengths(boardLength, dimensionParts);
-
-            // The material order is no good, since there were no parts that would fit in this board
-            if (childCutSumLists.Count == 0)
+            return Task.Factory.StartNew(() =>
             {
-                return;
-            }
+                List<SumList> childCutSumLists = GetChildCutLengths(boardLength, dimensionParts);
 
-            // Create a new cut order instance for each child branch to avoid recursive calls to 
-            // sibling branches modifying the cut order of the child branch.
-            var childCutOrders = new CutOrder[childCutSumLists.Count];
-            for (int i = 0; i < childCutOrders.Length; i++)
-            {
-                var childCutOrder = (CutOrder) cutOrder.Clone();
-                childCutOrders[i] = childCutOrder;
-            }
-            for (int i = 0; i < childCutSumLists.Count; i++)
-            {
-                SumList childCutSumList = childCutSumLists[i];
-                CutOrder childCutOrder = childCutOrders[i];
-
-                var childCutLengths = new List<decimal>(childCutSumList);
-                childCutOrder.Add(new Board { Dimension = dimension, Length = boardLength }, childCutLengths);
-                var childDimensionParts = new List<decimal>(dimensionParts);
-                foreach (decimal childCutLength in childCutLengths)
+                // The material order is no good, since there were no parts that would fit in this board
+                if (childCutSumLists.Count == 0)
                 {
-                    childDimensionParts.Remove(childCutLength);
+                    return;
                 }
-                NextBoard(childCutOrder, dimension, materialOrder, currentIndex + 1, childDimensionParts);
-            }
+
+                // Create a new cut order instance for each child branch to avoid recursive calls to 
+                // sibling branches modifying the cut order of the child branch.
+                var childCutOrders = new CutOrder[childCutSumLists.Count];
+                for (int i = 0; i < childCutOrders.Length; i++)
+                {
+                    var childCutOrder = (CutOrder) cutOrder.Clone();
+                    childCutOrders[i] = childCutOrder;
+                }
+                for (int i = 0; i < childCutSumLists.Count; i++)
+                {
+                    SumList childCutSumList = childCutSumLists[i];
+                    CutOrder childCutOrder = childCutOrders[i];
+
+                    var childCutLengths = new List<decimal>(childCutSumList);
+                    childCutOrder.Add(new Board {Dimension = dimension, Length = boardLength}, childCutLengths);
+                    var childDimensionParts = new List<decimal>(dimensionParts);
+                    foreach (decimal childCutLength in childCutLengths)
+                    {
+                        childDimensionParts.Remove(childCutLength);
+                    }
+                    NextBoard(childCutOrder, dimension, materialOrder, currentIndex + 1, childDimensionParts);
+                }
+            });
         }
     }
 }
