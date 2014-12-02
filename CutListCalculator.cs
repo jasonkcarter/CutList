@@ -83,61 +83,72 @@ namespace CutList
             return optimal;
         }
 
-        private static List<SumList> GetChildCutLengths(decimal boardLength, decimal[] parts)
+        private static List<SumList> GetChildCutLengths(decimal boardLength, List<decimal> parts, decimal? parentPartLength = null)
         {
             var allChildCutOrders = new List<SumList>();
 
-            var knownCutLengths = new List<decimal>();
-            for (int i = 0; i < parts.Length; i++)
+            var partLengths = new List<decimal>(parts);
+            var distinctPartLengths = parts.Distinct();
+            int i = -1;
+            decimal? previousPartLength = null;
+            foreach(decimal partLength in distinctPartLengths)
             {
-                decimal partLength = parts[i];
+                i++;
 
-                // Performance: don't recurse duplicate cut lengths, since the child cut order will be the same.
-                if (knownCutLengths.Contains(partLength))
-                {
-                    continue;
-                }
-                knownCutLengths.Add(partLength);
                 if (partLength > boardLength)
                 {
+                    previousPartLength = partLength;
                     continue;
                 }
 
+                // If the part is exactly the right length, we won't get any more efficient
                 if (partLength == boardLength)
                 {
                     var childCuts = new SumList {partLength};
-                    allChildCutOrders.Add(childCuts);
-                    continue;
+                    allChildCutOrders = new List<SumList> {childCuts};
+                    break;
                 }
 
-                var childParts = new decimal[parts.Length - 1];
-                for (int j = 0; j < i; j++)
+                // Remove the current part from the parts list.
+                partLengths.Remove(partLength);
+
+                /* Performance: exclude all parts the same size as the parent part length from 
+                 * all but the first recursive call, to avoid inverted order duplicates. */
+                if (i == 1 && parentPartLength != null)
                 {
-                    childParts[j] = parts[j];
+                    partLengths.RemoveAll(x => x == parentPartLength.Value);
                 }
-                for (int j = i + 1; j < parts.Length; j++)
+
+                /* Performance: exclude all prior part lengths from successive loops to avoid inverted order duplicates */
+                if (previousPartLength != null)
                 {
-                    childParts[j - 1] = parts[j];
+                    partLengths.RemoveAll(x => x == previousPartLength.Value);
                 }
+
+                // If no parts are available for the sub-tree to use, don't bother looking futher
+                if (partLengths.Count == 0)
+                {
+                    break;
+                }
+
                 List<SumList> childCutLengths = GetChildCutLengths(
                     boardLength - partLength - Settings.Default.BladeWidth,
-                    childParts);
+                    partLengths, partLength);
+
+                // No more parts can fit on this board, so just add the current length
                 if (childCutLengths.Count == 0)
                 {
                     var childCuts = new SumList {partLength};
                     allChildCutOrders.Add(childCuts);
                     continue;
                 }
+
                 foreach (var childCutLengthList in childCutLengths)
                 {
                     childCutLengthList.Insert(0, partLength);
-                    // Ignore duplicates
-                    if (!allChildCutOrders.Any(
-                        x => x.Sum == childCutLengthList.Sum && !x.Except(childCutLengthList).Any()))
-                    {
-                        allChildCutOrders.Add(childCutLengthList);
-                    }
+                    allChildCutOrders.Add(childCutLengthList);
                 }
+                previousPartLength = partLength;
             }
 
 
@@ -200,7 +211,7 @@ namespace CutList
                 }
             }
 
-            List<SumList> childCutSumLists = GetChildCutLengths(boardLength, dimensionParts.ToArray());
+            List<SumList> childCutSumLists = GetChildCutLengths(boardLength, dimensionParts);
 
             // The material order is no good, since there were no parts that would fit in this board
             if (childCutSumLists.Count == 0)
