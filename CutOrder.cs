@@ -42,13 +42,19 @@ namespace CutList
         {
             var csv = new StringBuilder("Dimension,Board #,Board length (in),Cut length (in)");
             int boardNumber = 0;
+            string previousDimension = null;
             foreach (Board board in Keys)
             {
+                if (board.Dimension != previousDimension)
+                {
+                    boardNumber = 0;
+                }
                 boardNumber++;
                 foreach (decimal length in this[board])
                 {
                     csv.AppendFormat("\r\n{0},{1},{2},{3}", board.Dimension, boardNumber, board.Length, length);
                 }
+                previousDimension = board.Dimension;
             }
             return csv.ToString();
         }

@@ -1,7 +1,6 @@
 Dimension (in),Length (in),Quantity
 2x2,10,2
 2x2,13,2
-2x2,13,1
 2x2,15,4
 2x2,19,2
 2x2,23,2
@@ -53,7 +52,6 @@ Dimension (in),Length (in),Quantity
 4x4,45,1
 4x4,99,4
 4x4,110,2
-4x4,132,4
 5/4x6,19,20
 5/4x6,26,12
 5/4x6,34,17
