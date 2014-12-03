@@ -97,7 +97,7 @@ namespace CutList
                 throw new ArgumentException("parts cannot contain any lengths longer than boardLength", "parts");
             }
             var cutOrder = new CutOrder();
-            decimal currentBoardLength = boardLength;
+            decimal currentBoardLength = 0M;
             var currentBoardCuts = new List<decimal>();
             bool isFirst = true;
 
@@ -105,31 +105,120 @@ namespace CutList
 
             while (remainingParts.Count > 0)
             {
-                decimal bladeWidth = 0M;
                 if (isFirst)
                 {
+                    decimal firstCut = remainingParts[0];
+                    currentBoardCuts.Add(firstCut);
+                    remainingParts.RemoveAt(0);
+                    currentBoardLength = boardLength - firstCut;
                     isFirst = false;
-                }
-                else
-                {
-                    bladeWidth += Settings.Default.BladeWidth;
+                    continue;
                 }
 
-                decimal partLength = remainingParts.FirstOrDefault(x => x + bladeWidth <= currentBoardLength);
-                if (partLength == 0M)
+                // Advanced strategy: for the last two cuts on the board when we have three or more cuts to go, 
+                // find the max two-cut sum that will fit on the current board from the list of available boards
+                PartPair lastCutPair = GetLongestPartPair(remainingParts, currentBoardLength);
+                if (lastCutPair != null)
                 {
+                    remainingParts.Remove(lastCutPair.LargerPart);
+                    remainingParts.Remove(lastCutPair.SmallerPart);
+                    currentBoardCuts.Add(lastCutPair.LargerPart);
+                    currentBoardCuts.Add(lastCutPair.SmallerPart);
                     cutOrder.Add(new Board {Dimension = dimension, Length = boardLength}, currentBoardCuts);
-                    currentBoardCuts = new List<decimal>();
+
                     currentBoardLength = boardLength;
+                    currentBoardCuts = new List<decimal>();
                     isFirst = true;
-                    partLength = remainingParts.First(x => x <= currentBoardLength);
+                    continue;
                 }
-                currentBoardCuts.Add(partLength);
-                currentBoardLength -= bladeWidth + partLength;
-                remainingParts.Remove(partLength);
+
+
+                // Normal strategy: select the longest cut from the remaining parts that will fit on the current board
+                decimal cut =
+                    remainingParts.FirstOrDefault(x => currentBoardLength >= (x + Settings.Default.BladeWidth));
+                if (cut != 0M)
+                {
+                    currentBoardCuts.Add(cut);
+                    remainingParts.Remove(cut);
+                    cut += Settings.Default.BladeWidth;
+                    currentBoardLength -= cut;
+                    continue;
+                }
+
+                cutOrder.Add(new Board {Dimension = dimension, Length = boardLength}, currentBoardCuts);
+                currentBoardCuts = new List<decimal> ();
+                currentBoardLength = boardLength;
+                isFirst = true;
             }
-            cutOrder.Add(new Board {Dimension = dimension, Length = boardLength}, currentBoardCuts);
+            if (currentBoardCuts.Count > 0)
+            {
+                cutOrder.Add(new Board { Dimension = dimension, Length = boardLength }, currentBoardCuts);
+            }
+
             return cutOrder;
+        }
+
+        /// <summary>
+        ///     For parts lists with at least 3 more parts to go, finds the largest pair of remaining parts that will fit on a
+        ///     given length of board, including the width of the saw blade.
+        /// </summary>
+        /// <param name="parts">The list of remaining parts to be cut, sorted from longest to shortest.</param>
+        /// <param name="boardLength">The length of board to fit the cuts into.</param>
+        /// <returns>
+        ///     The largest part pair that will fit on the board; null if the all the parts are too big, or if there are fewer
+        ///     than three boards left.
+        /// </returns>
+        private static PartPair GetLongestPartPair(IList<decimal> parts, decimal boardLength)
+        {
+            if (parts.Count < 3 || boardLength >= ((3*Settings.Default.BladeWidth) + parts[0] + parts[1] + parts[2]))
+            {
+                return null;
+            }
+            // Give me the largest pair of remaining parts that sum to less than the current board length + 2 * BladeWidth
+            decimal cutPairThreshold = boardLength - (2*Settings.Default.BladeWidth);
+            var distinctRemainingParts =
+                parts.GroupBy(x => x).Select(x => new {Part = x.Key, Count = x.Count()}).ToArray();
+
+            // If there's only one size of part left...
+            if (distinctRemainingParts.Length == 1)
+            {
+                // See if two of them will fit on this board...
+                decimal part = distinctRemainingParts.First().Part;
+                decimal sum = part*2;
+
+                // If not, return null
+                if (sum > cutPairThreshold)
+                {
+                    return null;
+                }
+
+                // If so, return a pair with the part length
+                return new PartPair(part, part);
+            }
+
+            for (int i = 0; i < distinctRemainingParts.Length; i++)
+            {
+                decimal firstPart = distinctRemainingParts[i].Part;
+                if (firstPart > cutPairThreshold)
+                {
+                    continue;
+                }
+                int secondPartStartIndex = distinctRemainingParts[i].Count > 1 ? i : i + 1;
+                for (int j = secondPartStartIndex; j < distinctRemainingParts.Length; j++)
+                {
+                    decimal secondPart = distinctRemainingParts[j].Part;
+                    decimal sum = firstPart + secondPart;
+                    if (sum > cutPairThreshold)
+                    {
+                        continue;
+                    }
+
+                    // Assumption: parts list is sorted largest to smallest.
+                    // We can just return the first match, since the sum of the largest two component parts will be the longest.
+                    return new PartPair(firstPart, secondPart);
+                }
+            }
+            return null;
         }
     }
 }

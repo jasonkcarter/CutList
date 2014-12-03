@@ -5,7 +5,7 @@ using System.IO;
 namespace CutList
 {
     /// <summary>
-    ///     Represents several sorted lists of of wood lengths, grouped by dimension.
+    ///     Represents several sorted lists of of wood lengths, grouped by dimension and sorted from longest to shortest.
     /// </summary>
     public class WoodList : Dictionary<string, List<decimal>>
     {
